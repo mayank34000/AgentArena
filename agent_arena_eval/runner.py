@@ -14,7 +14,9 @@ class EvaluationRunner:
         self._adapter = adapter
 
     def evaluate(self, input: str, reference: str) -> EvaluationResult:
-        if not isinstance(input, str) or not input.strip():
+        if not isinstance(input, str):
+            raise TypeError("input must be a string")
+        if not input.strip():
             raise ValueError("input must be a non-empty string")
         if not isinstance(reference, str):
             raise TypeError("reference must be a string")
@@ -23,23 +25,30 @@ class EvaluationRunner:
         try:
             response = self._adapter.generate(ModelRequest(input=input))
         except ModelAdapterError as exc:
-            duration = perf_counter() - started_at
+            error = str(exc) or "Adapter request failed."
+        except Exception as exc:
+            error = f"Adapter failed with {type(exc).__name__}."
+        else:
+            if (
+                not isinstance(response, ModelResponse)
+                or not isinstance(response.output, str)
+                or not isinstance(response.model_id, str)
+                or not response.model_id.strip()
+            ):
+                error = "Adapter returned an invalid response."
+            else:
+                error = None
+
+        if error is not None:
             return EvaluationResult(
                 input=input,
                 reference=reference,
                 actual_output=None,
                 passed=None,
                 score=None,
-                duration_seconds=duration,
-                error=str(exc),
+                duration_seconds=perf_counter() - started_at,
+                error=error,
             )
-
-        if (
-            not isinstance(response, ModelResponse)
-            or not isinstance(response.output, str)
-            or not isinstance(response.model_id, str)
-        ):
-            raise TypeError("adapter generate() must return a normalized ModelResponse")
 
         passed = response.output == reference
         return EvaluationResult(

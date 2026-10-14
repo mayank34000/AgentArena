@@ -1,2 +1,2 @@
 class ModelAdapterError(Exception):
-    """An expected failure while submitting a request to a model adapter."""
+    """A safe-to-report failure translated by an adapter from provider details."""

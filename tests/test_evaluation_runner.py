@@ -51,6 +51,20 @@ def test_adapter_error_is_returned_as_failure_result():
     assert result.duration_seconds >= 0
 
 
+def test_unexpected_adapter_exception_does_not_expose_exception_message():
+    class UnexpectedFailureAdapter:
+        def generate(self, request):
+            raise RuntimeError("authorization token=secret-value")
+
+    result = EvaluationRunner(UnexpectedFailureAdapter()).evaluate("question", "answer")
+
+    assert result.actual_output is None
+    assert result.passed is None
+    assert result.score is None
+    assert result.error == "Adapter failed with RuntimeError."
+    assert "secret-value" not in result.error
+
+
 class BrokenAdapter:
     def generate(self, request):
         raise ModelAdapterError("provider unavailable")
@@ -64,11 +78,57 @@ def test_adapter_contract_works_polymorphically():
 
 
 @pytest.mark.parametrize(
+    "response",
+    [
+        None,
+        "answer",
+        ModelResponse(output=None, model_id="mock"),
+        ModelResponse(output="answer", model_id="  "),
+        ModelResponse(output="answer", model_id=None),
+    ],
+)
+def test_invalid_adapter_response_returns_consistent_failure_result(response):
+    class MalformedAdapter:
+        def generate(self, request):
+            return response
+
+    result = EvaluationRunner(MalformedAdapter()).evaluate("question", "answer")
+
+    assert result.actual_output is None
+    assert result.passed is None
+    assert result.score is None
+    assert result.error == "Adapter returned an invalid response."
+
+
+def test_empty_model_output_is_a_valid_non_matching_response():
+    result = EvaluationRunner(MockModelAdapter({"question": ""})).evaluate(
+        "question", "answer"
+    )
+
+    assert result.actual_output == ""
+    assert result.passed is False
+    assert result.score == 0.0
+    assert result.error is None
+
+
+def test_invalid_adapter_configuration_is_rejected():
+    with pytest.raises(TypeError, match="callable generate"):
+        EvaluationRunner(object())
+
+    with pytest.raises(TypeError, match="mapping"):
+        MockModelAdapter([])
+
+    with pytest.raises(ValueError, match="non-empty strings"):
+        MockModelAdapter({"  ": "answer"})
+
+
+@pytest.mark.parametrize(
     ("input_value", "reference"),
     [("", "answer"), ("  ", "answer"), (None, "answer"), ("question", None)],
 )
 def test_invalid_input_is_rejected(input_value, reference):
     runner = EvaluationRunner(MockModelAdapter({}))
 
-    with pytest.raises((TypeError, ValueError)):
+    expected_error = TypeError if input_value is None or reference is None else ValueError
+    with pytest.raises(expected_error):
         runner.evaluate(input_value, reference)
