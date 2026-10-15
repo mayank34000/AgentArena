@@ -1,8 +1,16 @@
+from collections.abc import Iterable, Mapping
 from time import perf_counter
 
 from .contracts import ModelAdapter
+from .datasets import DATASET_FORMAT_VERSION, validate_dataset
 from .errors import ModelAdapterError
-from .models import EvaluationResult, ModelRequest, ModelResponse
+from .models import (
+    DatasetEvaluationResult,
+    DatasetItemResult,
+    EvaluationResult,
+    ModelRequest,
+    ModelResponse,
+)
 
 
 class EvaluationRunner:
@@ -58,4 +66,34 @@ class EvaluationRunner:
             passed=passed,
             score=1.0 if passed else 0.0,
             duration_seconds=perf_counter() - started_at,
+        )
+
+    def evaluate_dataset(
+        self,
+        records: Iterable[Mapping[str, object]],
+    ) -> DatasetEvaluationResult:
+        examples = validate_dataset(records)
+        items = tuple(
+            DatasetItemResult(
+                example_id=example.example_id,
+                result=self.evaluate(example.input, example.reference),
+            )
+            for example in examples
+        )
+        pass_count = sum(item.result.passed is True for item in items)
+        fail_count = sum(item.result.passed is False for item in items)
+        error_count = sum(item.result.passed is None for item in items)
+        scored_count = pass_count + fail_count
+
+        return DatasetEvaluationResult(
+            items=items,
+            dataset_format_version=DATASET_FORMAT_VERSION,
+            total_count=len(items),
+            scored_count=scored_count,
+            pass_count=pass_count,
+            fail_count=fail_count,
+            error_count=error_count,
+            mean_score=pass_count / scored_count if scored_count else None,
+            metric_name="exact_match_accuracy",
+            metric_version="1",
         )

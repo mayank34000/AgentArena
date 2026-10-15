@@ -11,6 +11,8 @@ Dataset versions are immutable and include stable IDs, inputs, optional referenc
 - **Reference-based:** choose task-appropriate references, possibly multiple; similarity can miss factuality/equivalence.
 - **Rubric/open-ended:** define criteria and anchors in advance. Calibrate high-impact judgments with humans. LLM judges require versioned model/prompt, blinding where possible, human calibration, bias/disagreement inspection, and disclosure as estimates rather than ground truth.
 
+The initial dataset format (version `1`) accepts ordered records with unique non-empty string IDs, non-empty string inputs, and string references. Empty references are permitted to preserve single-example runner behavior; empty datasets are rejected. Version-1 exact-match accuracy is the mean of per-example scores over responses that were scored. Adapter errors are excluded from that denominator and reported separately, so a mean is `None` when every example errors. Results include dataset format and metric versions plus total, scored, pass, fail, and error counts to make coverage visible. Exact comparison remains case- and whitespace-sensitive.
+
 Do not combine unlike metrics without justified explicit weights. Report denominators, failures, uncertainty when estimable, and evaluator versions.
 
 ## Operational metrics and comparison
