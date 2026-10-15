@@ -13,6 +13,8 @@ Dataset versions are immutable and include stable IDs, inputs, optional referenc
 
 The initial dataset format (version `1`) accepts ordered records with unique non-empty string IDs, non-empty string inputs, and string references. Empty references are permitted to preserve single-example runner behavior; empty datasets are rejected. Version-1 exact-match accuracy is the mean of per-example scores over responses that were scored. Adapter errors are excluded from that denominator and reported separately, so a mean is `None` when every example errors. Results include dataset format and metric versions plus total, scored, pass, fail, and error counts to make coverage visible. Exact comparison remains case- and whitespace-sensitive.
 
+Structured-output evaluation uses an explicitly supplied JSON Schema Draft 2020-12 schema and reports `json_schema_validity` metric version `1` separately from exact match. Schemas are validated before model calls; an omitted `$schema` defaults to Draft 2020-12, while another declared draft is rejected. Standard Draft 2020-12 behavior applies, including the default that additional properties are allowed unless constrained. `format` annotations are not asserted, and boolean schemas are supported. Results distinguish malformed JSON (`json_valid: false`) from valid JSON that violates the schema (`schema_valid: false`); schema failures use fixed reason codes without output excerpts. Dataset evaluation applies one explicit schema to each ordered record and preserves each record's ID. Adapter errors are reported separately and excluded from the score denominator.
+
 Do not combine unlike metrics without justified explicit weights. Report denominators, failures, uncertainty when estimable, and evaluator versions.
 
 ## Operational metrics and comparison
@@ -24,3 +26,5 @@ Snapshot model/provider ID, adapter, prompt/settings, dataset/suite/evaluator/ju
 ## Robustness and regression
 
 Define controlled perturbations and expected invariants; link transformed examples to source and transformation version. They may not represent real risks. Compare compatible versions on shared examples/metric definitions, set task-specific tolerances, and inspect per-example changes. Thresholds prompt review; they are not proof. Account for sample noise, provider drift, evaluator changes. Defer agent/tool failure injection until boundaries, side effects, and containment are specified.
+
+Structured-output schema references using `$ref` or `$dynamicRef` are rejected in this milestone.

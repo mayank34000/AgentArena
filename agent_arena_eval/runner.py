@@ -10,6 +10,15 @@ from .models import (
     EvaluationResult,
     ModelRequest,
     ModelResponse,
+    StructuredDatasetEvaluationResult,
+    StructuredDatasetItemResult,
+    StructuredOutputResult,
+)
+from .structured import (
+    JSON_SCHEMA_VERSION,
+    STRUCTURED_METRIC_NAME,
+    STRUCTURED_METRIC_VERSION,
+    JsonSchemaEvaluator,
 )
 
 
@@ -22,13 +31,116 @@ class EvaluationRunner:
         self._adapter = adapter
 
     def evaluate(self, input: str, reference: str) -> EvaluationResult:
-        if not isinstance(input, str):
-            raise TypeError("input must be a string")
-        if not input.strip():
-            raise ValueError("input must be a non-empty string")
+        self._validate_input(input)
         if not isinstance(reference, str):
             raise TypeError("reference must be a string")
 
+        response, duration, error = self._generate(input)
+        if error is not None:
+            return EvaluationResult(
+                input=input,
+                reference=reference,
+                actual_output=None,
+                passed=None,
+                score=None,
+                duration_seconds=duration,
+                error=error,
+            )
+
+        passed = response.output == reference
+        return EvaluationResult(
+            input=input,
+            reference=reference,
+            actual_output=response.output,
+            passed=passed,
+            score=1.0 if passed else 0.0,
+            duration_seconds=duration,
+        )
+
+    def evaluate_structured(
+        self,
+        input: str,
+        schema: Mapping[str, object] | bool,
+    ) -> StructuredOutputResult:
+        self._validate_input(input)
+        evaluator = JsonSchemaEvaluator(schema)
+        return self._evaluate_structured(input, evaluator)
+
+    def evaluate_structured_dataset(
+        self,
+        records: Iterable[Mapping[str, object]],
+        schema: Mapping[str, object] | bool,
+    ) -> StructuredDatasetEvaluationResult:
+        examples = validate_dataset(records)
+        evaluator = JsonSchemaEvaluator(schema)
+        items = tuple(
+            StructuredDatasetItemResult(
+                example_id=example.example_id,
+                result=self._evaluate_structured(example.input, evaluator),
+            )
+            for example in examples
+        )
+        pass_count = sum(item.result.passed is True for item in items)
+        fail_count = sum(item.result.passed is False for item in items)
+        error_count = sum(item.result.passed is None for item in items)
+        scored_count = pass_count + fail_count
+
+        return StructuredDatasetEvaluationResult(
+            items=items,
+            dataset_format_version=DATASET_FORMAT_VERSION,
+            schema_version=JSON_SCHEMA_VERSION,
+            total_count=len(items),
+            scored_count=scored_count,
+            pass_count=pass_count,
+            fail_count=fail_count,
+            error_count=error_count,
+            json_valid_count=sum(item.result.json_valid is True for item in items),
+            schema_valid_count=sum(item.result.schema_valid is True for item in items),
+            json_invalid_count=sum(item.result.json_valid is False for item in items),
+            schema_invalid_count=sum(item.result.schema_valid is False for item in items),
+            mean_score=pass_count / scored_count if scored_count else None,
+            metric_name=STRUCTURED_METRIC_NAME,
+            metric_version=STRUCTURED_METRIC_VERSION,
+        )
+
+    def _evaluate_structured(
+        self,
+        input: str,
+        evaluator: JsonSchemaEvaluator,
+    ) -> StructuredOutputResult:
+        response, duration, error = self._generate(input)
+        if error is not None:
+            return StructuredOutputResult(
+                input=input,
+                actual_output=None,
+                json_valid=None,
+                schema_valid=None,
+                passed=None,
+                score=None,
+                duration_seconds=duration,
+                schema_version=JSON_SCHEMA_VERSION,
+                metric_name=STRUCTURED_METRIC_NAME,
+                metric_version=STRUCTURED_METRIC_VERSION,
+                error=error,
+            )
+
+        check = evaluator.evaluate(response.output)
+        passed = check.schema_valid is True
+        return StructuredOutputResult(
+            input=input,
+            actual_output=response.output,
+            json_valid=check.json_valid,
+            schema_valid=check.schema_valid,
+            passed=passed,
+            score=1.0 if passed else 0.0,
+            duration_seconds=duration,
+            schema_version=JSON_SCHEMA_VERSION,
+            metric_name=STRUCTURED_METRIC_NAME,
+            metric_version=STRUCTURED_METRIC_VERSION,
+            failure_reason=check.failure_reason,
+        )
+
+    def _generate(self, input: str) -> tuple[ModelResponse | None, float, str | None]:
         started_at = perf_counter()
         try:
             response = self._adapter.generate(ModelRequest(input=input))
@@ -48,25 +160,15 @@ class EvaluationRunner:
                 error = None
 
         if error is not None:
-            return EvaluationResult(
-                input=input,
-                reference=reference,
-                actual_output=None,
-                passed=None,
-                score=None,
-                duration_seconds=perf_counter() - started_at,
-                error=error,
-            )
+            return None, perf_counter() - started_at, error
+        return response, perf_counter() - started_at, None
 
-        passed = response.output == reference
-        return EvaluationResult(
-            input=input,
-            reference=reference,
-            actual_output=response.output,
-            passed=passed,
-            score=1.0 if passed else 0.0,
-            duration_seconds=perf_counter() - started_at,
-        )
+    @staticmethod
+    def _validate_input(input: str) -> None:
+        if not isinstance(input, str):
+            raise TypeError("input must be a string")
+        if not input.strip():
+            raise ValueError("input must be a non-empty string")
 
     def evaluate_dataset(
         self,
