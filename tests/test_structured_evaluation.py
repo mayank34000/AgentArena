@@ -38,6 +38,7 @@ def test_structured_output_accepts_json_matching_schema():
     assert result.schema_version == "https://json-schema.org/draft/2020-12/schema"
     assert result.metric_name == "json_schema_validity"
     assert result.metric_version == "1"
+    assert len(result.schema_digest) == 64
 
 
 def test_public_exports_are_unique_and_available():
@@ -214,6 +215,32 @@ def test_structured_dataset_preserves_order_and_id_association():
     assert result.json_invalid_count == 1
     assert result.schema_invalid_count == 0
     assert result.mean_score == 0.5
+    assert result.schema_digest == result.items[0].result.schema_digest
+    assert all(
+        (item.result.metric_name, item.result.metric_version)
+        == (result.metric_name, result.metric_version)
+        for item in result.items
+    )
+
+
+def test_schema_digest_is_canonical_stable_and_distinguishes_schema_contents():
+    adapter = MockModelAdapter({"input": "{}", "unrelated input": "{}"})
+    runner = EvaluationRunner(adapter)
+    first = runner.evaluate_structured("input", {"type": "object", "maxProperties": 2})
+    same_schema = runner.evaluate_structured("input", {"maxProperties": 2, "type": "object"})
+    changed_schema = runner.evaluate_structured("input", {"type": "object", "maxProperties": 3})
+    unrelated_input = runner.evaluate_structured(
+        "unrelated input", {"maxProperties": 2, "type": "object"}
+    )
+
+    assert first.schema_digest == same_schema.schema_digest
+    assert first.schema_digest == unrelated_input.schema_digest
+    assert first.schema_digest != changed_schema.schema_digest
+    assert (first.metric_name, first.metric_version, first.score) == (
+        same_schema.metric_name,
+        same_schema.metric_version,
+        same_schema.score,
+    )
 
 
 def test_schema_validation_failure_does_not_include_model_output():

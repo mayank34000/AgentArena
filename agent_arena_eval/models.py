@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from .metrics import EXACT_MATCH_METRIC_NAME, EXACT_MATCH_METRIC_VERSION
+
 
 @dataclass(frozen=True)
 class ModelRequest:
@@ -21,6 +23,8 @@ class EvaluationResult:
     score: float | None
     duration_seconds: float
     error: str | None = None
+    metric_name: str = EXACT_MATCH_METRIC_NAME
+    metric_version: str = EXACT_MATCH_METRIC_VERSION
 
 
 @dataclass(frozen=True)
@@ -57,6 +61,7 @@ class StructuredOutputResult:
     metric_version: str
     failure_reason: str | None = None
     error: str | None = None
+    schema_digest: str = ""
 
 
 @dataclass(frozen=True)
@@ -82,3 +87,4 @@ class StructuredDatasetEvaluationResult:
     mean_score: float | None
     metric_name: str
     metric_version: str
+    schema_digest: str = ""

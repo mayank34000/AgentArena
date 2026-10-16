@@ -110,6 +110,11 @@ def test_dataset_evaluation_aggregates_scores_and_adapter_errors():
     assert result.mean_score == 0.5
     assert result.metric_name == "exact_match_accuracy"
     assert result.metric_version == "1"
+    assert all(
+        (item.result.metric_name, item.result.metric_version)
+        == (result.metric_name, result.metric_version)
+        for item in result.items
+    )
     assert result.items[2].result.passed is None
     assert result.items[2].result.error == "No mock response is configured for this input."
 
@@ -130,6 +135,17 @@ def test_dataset_scores_are_reproducible_with_the_same_mock_adapter():
     )
     assert [item.result.actual_output for item in first.items] == [
         item.result.actual_output for item in second.items
+    ]
+    assert (first.metric_name, first.metric_version) == (
+        second.metric_name,
+        second.metric_version,
+    )
+    assert [
+        (item.result.metric_name, item.result.metric_version, item.result.score)
+        for item in first.items
+    ] == [
+        (item.result.metric_name, item.result.metric_version, item.result.score)
+        for item in second.items
     ]
 
 

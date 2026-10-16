@@ -29,6 +29,7 @@ def test_runner_scores_matching_output():
     assert result.score == 1.0
     assert result.duration_seconds >= 0
     assert result.error is None
+    assert (result.metric_name, result.metric_version) == ("exact_match_accuracy", "1")
 
 
 def test_runner_scores_non_matching_output():
@@ -132,3 +133,32 @@ def test_invalid_input_is_rejected(input_value, reference):
     expected_error = TypeError if input_value is None or reference is None else ValueError
     with pytest.raises(expected_error):
         runner.evaluate(input_value, reference)
+
+
+def test_evaluation_result_old_positional_constructor_remains_compatible():
+    from agent_arena_eval import EvaluationResult
+
+    result = EvaluationResult("q", "a", "a", True, 1.0, 0.0)
+
+    assert (result.metric_name, result.metric_version) == ("exact_match_accuracy", "1")
+
+
+def test_structured_result_old_positional_constructor_remains_compatible():
+    from agent_arena_eval import (
+        StructuredDatasetEvaluationResult,
+        StructuredOutputResult,
+    )
+
+    result = StructuredOutputResult(
+        "q", "{}", True, True, True, 1.0, 0.0, "draft", "metric", "1"
+    )
+
+    assert result.failure_reason is None
+    assert result.error is None
+    assert result.schema_digest == ""
+
+    dataset_result = StructuredDatasetEvaluationResult(
+        (), "1", "draft", 0, 0, 0, 0, 0, 0, 0, 0, 0, None, "metric", "1"
+    )
+
+    assert dataset_result.schema_digest == ""

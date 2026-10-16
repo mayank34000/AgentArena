@@ -1,4 +1,5 @@
 import json
+from hashlib import sha256
 from collections.abc import Mapping
 from dataclasses import dataclass
 
@@ -6,10 +7,9 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
 from .errors import SchemaValidationError
+from .metrics import STRUCTURED_METRIC_NAME, STRUCTURED_METRIC_VERSION
 
 JSON_SCHEMA_VERSION = "https://json-schema.org/draft/2020-12/schema"
-STRUCTURED_METRIC_NAME = "json_schema_validity"
-STRUCTURED_METRIC_VERSION = "1"
 _SCHEMA_MAP_KEYWORDS = (
     "$defs",
     "definitions",
@@ -59,6 +59,14 @@ class JsonSchemaEvaluator:
             ) from exc
         if self._has_references(schema):
             raise SchemaValidationError("schema references are not supported")
+
+        try:
+            canonical_schema = json.dumps(
+                schema, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+            )
+        except (TypeError, ValueError) as exc:
+            raise SchemaValidationError("schema must contain only JSON values") from exc
+        self.schema_digest = sha256(canonical_schema.encode("utf-8")).hexdigest()
 
         self._validator = Draft202012Validator(schema)
 

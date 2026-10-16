@@ -14,6 +14,7 @@ from .models import (
     StructuredDatasetItemResult,
     StructuredOutputResult,
 )
+from .metrics import EXACT_MATCH_METRIC_NAME, EXACT_MATCH_METRIC_VERSION
 from .structured import (
     JSON_SCHEMA_VERSION,
     STRUCTURED_METRIC_NAME,
@@ -45,6 +46,8 @@ class EvaluationRunner:
                 score=None,
                 duration_seconds=duration,
                 error=error,
+                metric_name=EXACT_MATCH_METRIC_NAME,
+                metric_version=EXACT_MATCH_METRIC_VERSION,
             )
 
         passed = response.output == reference
@@ -55,6 +58,8 @@ class EvaluationRunner:
             passed=passed,
             score=1.0 if passed else 0.0,
             duration_seconds=duration,
+            metric_name=EXACT_MATCH_METRIC_NAME,
+            metric_version=EXACT_MATCH_METRIC_VERSION,
         )
 
     def evaluate_structured(
@@ -101,6 +106,7 @@ class EvaluationRunner:
             mean_score=pass_count / scored_count if scored_count else None,
             metric_name=STRUCTURED_METRIC_NAME,
             metric_version=STRUCTURED_METRIC_VERSION,
+            schema_digest=evaluator.schema_digest,
         )
 
     def _evaluate_structured(
@@ -122,6 +128,7 @@ class EvaluationRunner:
                 metric_name=STRUCTURED_METRIC_NAME,
                 metric_version=STRUCTURED_METRIC_VERSION,
                 error=error,
+                schema_digest=evaluator.schema_digest,
             )
 
         check = evaluator.evaluate(response.output)
@@ -138,6 +145,7 @@ class EvaluationRunner:
             metric_name=STRUCTURED_METRIC_NAME,
             metric_version=STRUCTURED_METRIC_VERSION,
             failure_reason=check.failure_reason,
+            schema_digest=evaluator.schema_digest,
         )
 
     def _generate(self, input: str) -> tuple[ModelResponse | None, float, str | None]:
@@ -196,6 +204,6 @@ class EvaluationRunner:
             fail_count=fail_count,
             error_count=error_count,
             mean_score=pass_count / scored_count if scored_count else None,
-            metric_name="exact_match_accuracy",
-            metric_version="1",
+            metric_name=EXACT_MATCH_METRIC_NAME,
+            metric_version=EXACT_MATCH_METRIC_VERSION,
         )
