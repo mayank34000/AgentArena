@@ -1,0 +1,19 @@
+{
+  "name": "agent-arena-api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "migrate": "node src/db/migrate.js",
+    "test": "node --test test/api.test.js test/config.test.js test/migrate.test.js test/shutdown.test.js test/postgres.integration.test.js",
+    "test:postgres": "node --test test/postgres.integration.test.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "pg": "^8.23.1"
+  }
+}
